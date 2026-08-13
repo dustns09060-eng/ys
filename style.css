@@ -682,3 +682,9 @@ body.gate-open{overflow:hidden}
 #followState{
   min-height:20px;
 }
+
+
+/* V42 첫 실행 흰 화면 방지 */
+#gateMessage:not(.hidden){margin:8px 0 0}
+.gate-overlay{min-height:100dvh}
+@media (prefers-reduced-motion: reduce){#bootScreen .boot-spinner{animation-duration:1.5s}}

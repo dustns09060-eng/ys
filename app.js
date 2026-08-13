@@ -447,6 +447,15 @@ function setAdminNavigation(enabled) {
   $("noticeNavBtn")?.classList.toggle("hidden", enabled);
 }
 
+function finishBootScreen() {
+  if (window.__yeowoobangBootTimer) {
+    clearTimeout(window.__yeowoobangBootTimer);
+    window.__yeowoobangBootTimer = null;
+  }
+  const boot = document.getElementById("bootScreen");
+  if (boot) boot.remove();
+}
+
 async function bootstrapAuth() {
   showGate();
   setGate("loading");
@@ -1485,12 +1494,23 @@ $("installBtn").onclick = async () => {
 };
 
 window.addEventListener("DOMContentLoaded", async () => {
+  // 첫 실행부터 접속 화면을 준비해 흰 화면이 보이지 않도록 합니다.
+  showGate();
+  setGate("loading", "여우방을 불러오는 중입니다.");
   renderResumeCard();
-  await loadConfig();
-  await bootstrapAuth();
 
+  // 서비스워커는 초기 인증과 별개로 최신 버전을 먼저 확인합니다.
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=400").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=402").catch(() => {});
+  }
+
+  try {
+    await loadConfig();
+    await bootstrapAuth();
+  } catch (error) {
+    setGate("error", `앱을 불러오지 못했습니다. ${error?.message || "다시 시도해 주세요."}`);
+  } finally {
+    finishBootScreen();
   }
 
   setInterval(async () => {

@@ -10,10 +10,10 @@
   <title>여우방 팔로우리스트+맞팔확인</title>
 
   <link rel="canonical" href="https://dustns09060-eng.github.io/ys/" />
-  <link rel="manifest" href="manifest.json?v=400" />
-  <link rel="icon" href="favicon-v20.png?v=400" type="image/png" />
-  <link rel="apple-touch-icon" href="icon-192-v20.png?v=400" />
-  <link rel="stylesheet" href="style.css?v=401" />
+  <link rel="manifest" href="manifest.json?v=402" />
+  <link rel="icon" href="favicon-v20.png?v=402" type="image/png" />
+  <link rel="apple-touch-icon" href="icon-192-v20.png?v=402" />
+  <link rel="stylesheet" href="style.css?v=402" />
 
   <meta property="og:locale" content="ko_KR" />
   <meta property="og:type" content="website" />
@@ -21,8 +21,8 @@
   <meta property="og:title" content="여우방 팔로우리스트+맞팔확인" />
   <meta property="og:description" content="여우방 팔로우리스트와 맞팔확인을 한 번에 확인해요." />
   <meta property="og:url" content="https://dustns09060-eng.github.io/ys/" />
-  <meta property="og:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=400" />
-  <meta property="og:image:secure_url" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=400" />
+  <meta property="og:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
+  <meta property="og:image:secure_url" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -30,12 +30,48 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="여우방 팔로우리스트+맞팔확인" />
   <meta name="twitter:description" content="여우방 팔로우리스트와 맞팔확인을 한 번에 확인해요." />
-  <meta name="twitter:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=400" />
+  <meta name="twitter:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
+
+  <style id="bootCriticalStyle">
+    #bootScreen{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;background:#f7f8fa;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#161616}
+    #bootScreen .boot-card{width:min(390px,100%);background:#fff;border:1px solid #e6e8eb;border-radius:24px;padding:32px 24px;text-align:center;box-shadow:0 20px 60px rgba(20,28,40,.10)}
+    #bootScreen .boot-logo{width:88px;height:88px;border-radius:50%;object-fit:cover;border:1px solid #f2ddcc}
+    #bootScreen h1{margin:16px 0 8px;font-size:24px}
+    #bootScreen p{margin:0;color:#737986;line-height:1.55;font-weight:700}
+    #bootScreen .boot-spinner{width:32px;height:32px;margin:22px auto 0;border:4px solid #ffe0cc;border-top-color:#ff6500;border-radius:50%;animation:bootSpin .8s linear infinite}
+    #bootScreen .boot-retry{display:none;width:100%;margin-top:20px;border:0;border-radius:13px;background:#ff6500;color:#fff;padding:15px;font-size:17px;font-weight:900}
+    #bootScreen.boot-slow .boot-retry{display:block}
+    @keyframes bootSpin{to{transform:rotate(360deg)}}
+  </style>
 </head>
 <body>
+  <div id="bootScreen" role="status" aria-live="polite">
+    <section class="boot-card">
+      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="boot-logo" />
+      <h1>여우방</h1>
+      <p id="bootMessage">여우방을 불러오는 중...</p>
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <button id="bootRetryBtn" class="boot-retry" type="button" onclick="location.reload()">다시 불러오기</button>
+    </section>
+  </div>
+  <script>
+    window.__yeowoobangBootTimer = window.setTimeout(function () {
+      var boot = document.getElementById('bootScreen');
+      var message = document.getElementById('bootMessage');
+      if (boot) boot.classList.add('boot-slow');
+      if (message) message.textContent = '불러오기가 지연되고 있어요. 잠시 기다리거나 다시 불러와 주세요.';
+    }, 8000);
+    window.addEventListener('error', function () {
+      var boot = document.getElementById('bootScreen');
+      var message = document.getElementById('bootMessage');
+      if (boot) boot.classList.add('boot-slow');
+      if (message) message.textContent = '앱을 불러오지 못했어요. 다시 불러오기를 눌러 주세요.';
+    });
+  </script>
+
   <div id="appGate" class="gate-overlay">
     <section class="gate-card access-card">
-      <img src="app-logo-v20.png?v=400" alt="여우방 로고" class="gate-logo" />
+      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="gate-logo" />
       <h1 id="gateTitle">여우방</h1>
       <p id="gateMessage" class="hidden"></p>
 
@@ -63,7 +99,7 @@
 
   <div id="updateOverlay" class="gate-overlay hidden">
     <section class="gate-card">
-      <img src="app-logo-v20.png?v=400" alt="여우방 로고" class="gate-logo" />
+      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="gate-logo" />
       <h1>새 버전이 있습니다</h1>
       <p id="updateMessage">앱을 최신 버전으로 업데이트해 주세요.</p>
       <button id="updateNowBtn" class="primary" type="button">지금 업데이트</button>
@@ -72,7 +108,7 @@
 
   <header class="header">
     <div class="brand">
-      <img class="brand-logo" src="app-logo-v20.png?v=400" alt="여우방 로고" />
+      <img class="brand-logo" src="app-logo-v20.png?v=402" alt="여우방 로고" />
       <div class="brand-text">
         <h1>여우방</h1>
         <p class="hidden">팔로우리스트+맞팔확인</p>
@@ -357,6 +393,6 @@
   </nav>
 
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=401"></script>
+  <script src="app.js?v=402"></script>
 </body>
 </html>
