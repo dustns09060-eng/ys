@@ -684,7 +684,25 @@ body.gate-open{overflow:hidden}
 }
 
 
-/* V42 첫 실행 흰 화면 방지 */
+/* V43 운영진 명단 자동 점검 */
+.roster-audit-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}
+.audit-stat{border:1px solid var(--line);border-radius:15px;padding:14px;background:#fafbfc;display:flex;flex-direction:column;gap:6px}
+.audit-stat span{font-size:12px;color:var(--muted)}
+.audit-stat strong{font-size:20px}
+.audit-stat.new{background:#f0fff6;border-color:#c8edd7}.audit-stat.new strong{color:#138a4c}
+.audit-stat.removed{background:#fff5f5;border-color:#f3caca}.audit-stat.removed strong{color:#d5343e}
+.audit-stat.changed{background:#fff9ef;border-color:#f4ddb0}.audit-stat.changed strong{color:#d77800}
+.audit-stat.warning{background:#fff8f2;border-color:#f1d2bd}.audit-stat.warning strong{color:#d85d00}
+.roster-audit-details{margin-top:14px;display:grid;gap:12px}
+.audit-detail-section{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+.audit-detail-section h4{margin:0 0 8px;font-size:14px;display:flex;justify-content:space-between;gap:10px}
+.audit-detail-section h4 span{color:var(--orange)}
+.audit-detail-row{padding:8px 0;border-top:1px dashed #e6e8eb;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.audit-detail-row:first-of-type{border-top:0}
+.audit-ok{border:1px solid #c8edd7;background:#f0fff6;color:#138a4c;border-radius:14px;padding:16px;text-align:center;font-weight:900}
+@media(max-width:720px){.roster-audit-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* V43 첫 실행 흰 화면 방지 */
 #gateMessage:not(.hidden){margin:8px 0 0}
 .gate-overlay{min-height:100dvh}
 @media (prefers-reduced-motion: reduce){#bootScreen .boot-spinner{animation-duration:1.5s}}

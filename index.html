@@ -10,10 +10,10 @@
   <title>여우방 팔로우리스트+맞팔확인</title>
 
   <link rel="canonical" href="https://dustns09060-eng.github.io/ys/" />
-  <link rel="manifest" href="manifest.json?v=402" />
-  <link rel="icon" href="favicon-v20.png?v=402" type="image/png" />
-  <link rel="apple-touch-icon" href="icon-192-v20.png?v=402" />
-  <link rel="stylesheet" href="style.css?v=402" />
+  <link rel="manifest" href="manifest.json?v=430" />
+  <link rel="icon" href="favicon-v20.png?v=430" type="image/png" />
+  <link rel="apple-touch-icon" href="icon-192-v20.png?v=430" />
+  <link rel="stylesheet" href="style.css?v=430" />
 
   <meta property="og:locale" content="ko_KR" />
   <meta property="og:type" content="website" />
@@ -21,8 +21,8 @@
   <meta property="og:title" content="여우방 팔로우리스트+맞팔확인" />
   <meta property="og:description" content="여우방 팔로우리스트와 맞팔확인을 한 번에 확인해요." />
   <meta property="og:url" content="https://dustns09060-eng.github.io/ys/" />
-  <meta property="og:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
-  <meta property="og:image:secure_url" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
+  <meta property="og:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=430" />
+  <meta property="og:image:secure_url" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=430" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -30,7 +30,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="여우방 팔로우리스트+맞팔확인" />
   <meta name="twitter:description" content="여우방 팔로우리스트와 맞팔확인을 한 번에 확인해요." />
-  <meta name="twitter:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=402" />
+  <meta name="twitter:image" content="https://dustns09060-eng.github.io/ys/preview-v35.png?v=430" />
 
   <style id="bootCriticalStyle">
     #bootScreen{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;background:#f7f8fa;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#161616}
@@ -47,7 +47,7 @@
 <body>
   <div id="bootScreen" role="status" aria-live="polite">
     <section class="boot-card">
-      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="boot-logo" />
+      <img src="app-logo-v20.png?v=430" alt="여우방 로고" class="boot-logo" />
       <h1>여우방</h1>
       <p id="bootMessage">여우방을 불러오는 중...</p>
       <div class="boot-spinner" aria-hidden="true"></div>
@@ -68,10 +68,9 @@
       if (message) message.textContent = '앱을 불러오지 못했어요. 다시 불러오기를 눌러 주세요.';
     });
   </script>
-
   <div id="appGate" class="gate-overlay">
     <section class="gate-card access-card">
-      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="gate-logo" />
+      <img src="app-logo-v20.png?v=430" alt="여우방 로고" class="gate-logo" />
       <h1 id="gateTitle">여우방</h1>
       <p id="gateMessage" class="hidden"></p>
 
@@ -99,7 +98,7 @@
 
   <div id="updateOverlay" class="gate-overlay hidden">
     <section class="gate-card">
-      <img src="app-logo-v20.png?v=402" alt="여우방 로고" class="gate-logo" />
+      <img src="app-logo-v20.png?v=430" alt="여우방 로고" class="gate-logo" />
       <h1>새 버전이 있습니다</h1>
       <p id="updateMessage">앱을 최신 버전으로 업데이트해 주세요.</p>
       <button id="updateNowBtn" class="primary" type="button">지금 업데이트</button>
@@ -108,7 +107,7 @@
 
   <header class="header">
     <div class="brand">
-      <img class="brand-logo" src="app-logo-v20.png?v=402" alt="여우방 로고" />
+      <img class="brand-logo" src="app-logo-v20.png?v=430" alt="여우방 로고" />
       <div class="brand-text">
         <h1>여우방</h1>
         <p class="hidden">팔로우리스트+맞팔확인</p>
@@ -359,6 +358,35 @@
         </div>
 
         <hr />
+        <div class="setting-block roster-audit-block">
+          <div class="section-title-row">
+            <div>
+              <h3>🛠️ 명단 자동 점검</h3>
+              <p class="subtext">현재 팔로우리스트를 이전 기준 명단과 비교하고 중복·누락을 자동으로 확인합니다.</p>
+            </div>
+            <button id="refreshRosterAuditBtn" class="outline small" type="button">다시 점검</button>
+          </div>
+
+          <div class="roster-audit-summary">
+            <article class="audit-stat new"><span>신규</span><strong id="auditNewCount">0명</strong></article>
+            <article class="audit-stat removed"><span>삭제</span><strong id="auditRemovedCount">0명</strong></article>
+            <article class="audit-stat changed"><span>아이디 변경 의심</span><strong id="auditChangedCount">0명</strong></article>
+            <article class="audit-stat warning"><span>중복·오류</span><strong id="auditIssueCount">0건</strong></article>
+          </div>
+
+          <p id="rosterBaselineState" class="state-text">기준 명단을 확인하는 중입니다.</p>
+
+          <div class="admin-actions">
+            <button id="copyRosterAuditBtn" class="outline" type="button">점검 결과 복사</button>
+            <button id="saveRosterBaselineBtn" class="outline success-outline" type="button">현재 명단을 기준으로 저장</button>
+          </div>
+
+          <div id="rosterAuditDetails" class="roster-audit-details">
+            <p class="state-text">운영진 로그인 후 자동으로 점검합니다.</p>
+          </div>
+        </div>
+
+        <hr />
         <div class="setting-block">
           <div class="section-title-row">
             <div><h3>운영진 로그</h3><p class="subtext">최근 설정 변경과 공지 작업을 확인합니다.</p></div>
@@ -374,7 +402,7 @@
 
   <footer>
     <span>© 2026 YEOWOOBANG</span>
-    <span>Version 40.0</span>
+    <span>Version 43.0</span>
   </footer>
 
   <nav class="bottom-nav" aria-label="주요 메뉴">
@@ -393,6 +421,6 @@
   </nav>
 
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=402"></script>
+  <script src="app.js?v=430"></script>
 </body>
 </html>

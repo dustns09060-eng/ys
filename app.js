@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 let roomList = [];
+let roomAuditSource = [];
 let matchRoomList = [];
 let result = { all: [], mutual: [], onlyMe: [], fansOnly: [], neither: [] };
 let currentTab = "all";
@@ -17,10 +18,10 @@ let followGranted = false;
 let gateMode = "loading";
 let securityVersion = "";
 let noticeSignature = "";
-const APP_VERSION = "V40";
+const APP_VERSION = "V43";
 
 let config = {
-  version: "V40 FASTLOAD",
+  version: "V43 ROSTER AUDIT",
   appName: "여우방 팔로우리스트+맞팔확인",
   apiUrl: "",
   sheetId: "",
@@ -32,6 +33,8 @@ const FOLLOW_PROGRESS_KEY = "yeowoobang:lastFollowPosition:v1";
 const FOLLOW_DAILY_KEY = "yeowoobang:dailyFollowVisits:v1";
 const FOLLOW_LIST_CACHE_KEY = "yeowoobang:followListCache:v1";
 const FOLLOW_LIST_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
+const ROSTER_BASELINE_KEY = "yeowoobang:adminRosterBaseline:v1";
+let lastRosterAudit = null;
 const JSZIP_CDN_URL = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
 let jsZipLoadPromise = null;
 
@@ -692,6 +695,23 @@ function parseCsv(text) {
   return rows;
 }
 
+function rowsToAuditSource(rows) {
+  const list = [];
+  rows.forEach((row, index) => {
+    const joined = row.join(" ");
+    if (index === 0 && (joined.includes("번호") || joined.includes("닉네임") || joined.includes("아이디"))) return;
+    if (!row.some((cell) => String(cell || "").trim())) return;
+
+    list.push({
+      no: String(row[0] || "").trim(),
+      name: String(row[1] || "").trim(),
+      idRaw: String(row[2] || "").trim(),
+      id: normalize(row[2] || ""),
+    });
+  });
+  return list;
+}
+
 function rowsToRoom(rows) {
   const list = [];
   rows.forEach((row, index) => {
@@ -718,6 +738,12 @@ async function loadRoomList(show = false) {
 
   try {
     const data = await apiGet("followList");
+    roomAuditSource = (data.members || []).map((item) => ({
+      no: String(item.no || "").trim(),
+      name: String(item.name || "").trim(),
+      idRaw: String(item.id || "").trim(),
+      id: normalize(item.id),
+    }));
     roomList = (data.members || []).map((item, index) => ({
       no: item.no || index + 1,
       name: item.name || "",
@@ -733,6 +759,7 @@ async function loadRoomList(show = false) {
     renderFollowList();
     renderResumeCard();
     saveFollowListCache(roomList);
+    if (adminLoggedIn) renderRosterAudit();
     if (show) toast("명단 새로고침 완료");
     return;
   } catch (error) {
@@ -751,8 +778,10 @@ async function loadRoomList(show = false) {
     try {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const list = rowsToRoom(parseCsv(await response.text()));
+      const parsedRows = parseCsv(await response.text());
+      const list = rowsToRoom(parsedRows);
       if (!list.length) throw new Error("0명");
+      roomAuditSource = rowsToAuditSource(parsedRows);
       roomList = list;
       setSheetState("백업");
       updateFollowStats();
@@ -761,6 +790,7 @@ async function loadRoomList(show = false) {
       renderFollowList();
       renderResumeCard();
       saveFollowListCache(roomList);
+      if (adminLoggedIn) renderRosterAudit();
       if (show) toast("백업 명단으로 불러왔습니다.");
       return;
     } catch (error) {
@@ -1306,6 +1336,159 @@ async function loadAdminLogs() {
   }
 }
 
+function rosterAuditMembers() {
+  const source = roomAuditSource.length
+    ? roomAuditSource
+    : roomList.map((item) => ({ no: String(item.no || "").trim(), name: item.name || "", idRaw: item.id || "", id: normalize(item.id) }));
+
+  return source.map((item) => ({
+    no: String(item.no || "").trim(),
+    name: String(item.name || "").trim(),
+    idRaw: String(item.idRaw ?? item.id ?? "").trim(),
+    id: normalize(item.idRaw ?? item.id ?? ""),
+  }));
+}
+
+function rosterSnapshot(members = rosterAuditMembers()) {
+  return {
+    savedAt: Date.now(),
+    members: members.map((item) => ({ no: item.no, name: item.name, id: item.id })),
+  };
+}
+
+function readRosterBaseline() {
+  const data = readStorageJson(ROSTER_BASELINE_KEY, null);
+  if (!data || !Array.isArray(data.members)) return null;
+  return data;
+}
+
+function duplicateGroups(items, keyFn) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const key = keyFn(item);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  return [...groups.entries()]
+    .filter(([, members]) => members.length > 1)
+    .map(([key, members]) => ({ key, members }));
+}
+
+function calculateRosterAudit() {
+  const current = rosterAuditMembers();
+  const baseline = readRosterBaseline();
+
+  const duplicateIds = duplicateGroups(current.filter((x) => validUsername(x.id)), (x) => x.id);
+  const duplicateNos = duplicateGroups(current, (x) => x.no);
+  const duplicateNames = duplicateGroups(current, (x) => x.name.trim().toLowerCase())
+    .filter((group) => new Set(group.members.map((x) => x.id)).size > 1);
+  const missingIds = current.filter((x) => !x.idRaw.trim());
+  const invalidIds = current.filter((x) => x.idRaw.trim() && !validUsername(x.id));
+  const missingNos = current.filter((x) => !x.no);
+  const missingNames = current.filter((x) => !x.name);
+
+  const newMembers = [];
+  const removedMembers = [];
+  const changedIds = [];
+
+  if (baseline) {
+    const currentNoGroups = duplicateGroups(current, (x) => x.no);
+    const baselineNormalized = (baseline.members || []).map((x) => ({
+      no: String(x.no || "").trim(),
+      name: String(x.name || "").trim(),
+      id: normalize(x.id),
+    }));
+    const baselineNoGroups = duplicateGroups(baselineNormalized, (x) => x.no);
+    const badCurrentNos = new Set(currentNoGroups.map((g) => g.key));
+    const badBaselineNos = new Set(baselineNoGroups.map((g) => g.key));
+
+    const currentByNo = new Map(current.filter((x) => x.no && !badCurrentNos.has(x.no)).map((x) => [x.no, x]));
+    const baseByNo = new Map(baselineNormalized.filter((x) => x.no && !badBaselineNos.has(x.no)).map((x) => [x.no, x]));
+
+    currentByNo.forEach((item, no) => {
+      const old = baseByNo.get(no);
+      if (!old) newMembers.push(item);
+      else if (old.id && item.id && old.id !== item.id) changedIds.push({ no, name: item.name || old.name, before: old.id, after: item.id });
+    });
+    baseByNo.forEach((item, no) => { if (!currentByNo.has(no)) removedMembers.push(item); });
+  }
+
+  const issueCount = duplicateIds.length + duplicateNos.length + duplicateNames.length + missingIds.length + invalidIds.length + missingNos.length + missingNames.length;
+  return { current, baseline, newMembers, removedMembers, changedIds, duplicateIds, duplicateNos, duplicateNames, missingIds, invalidIds, missingNos, missingNames, issueCount };
+}
+
+function auditMemberText(item) {
+  const no = item.no ? `${item.no}. ` : "";
+  const name = item.name || "(닉네임 없음)";
+  const id = item.id ? ` @${item.id}` : " (아이디 없음)";
+  return `${no}${name}${id}`;
+}
+
+function auditSectionHtml(title, items, formatter = auditMemberText) {
+  if (!items.length) return "";
+  return `<section class="audit-detail-section"><h4>${escapeHtml(title)} <span>${items.length}</span></h4>${items.map((item) => `<div class="audit-detail-row">${escapeHtml(formatter(item))}</div>`).join("")}</section>`;
+}
+
+function renderRosterAudit() {
+  if (!$("rosterAuditDetails")) return;
+  const audit = calculateRosterAudit();
+  lastRosterAudit = audit;
+
+  $("auditNewCount").textContent = `${audit.newMembers.length}명`;
+  $("auditRemovedCount").textContent = `${audit.removedMembers.length}명`;
+  $("auditChangedCount").textContent = `${audit.changedIds.length}명`;
+  $("auditIssueCount").textContent = `${audit.issueCount}건`;
+
+  if (!audit.baseline) {
+    $("rosterBaselineState").textContent = "기준 명단이 없습니다. 현재 명단을 기준으로 저장하면 이후 변경사항을 감지합니다.";
+  } else {
+    const date = new Date(audit.baseline.savedAt || 0);
+    $("rosterBaselineState").textContent = `기준 저장: ${date.toLocaleString("ko-KR")} · ${audit.baseline.members.length}명`;
+  }
+
+  const sections = [
+    auditSectionHtml("🆕 신규 회원", audit.newMembers),
+    auditSectionHtml("🔴 삭제된 회원", audit.removedMembers),
+    auditSectionHtml("🟠 아이디 변경 의심", audit.changedIds, (x) => `${x.no}. ${x.name}  @${x.before} → @${x.after}`),
+    auditSectionHtml("⚠️ 동일 아이디 중복", audit.duplicateIds, (g) => `@${g.key} · ${g.members.map((x) => `${x.no || "?"}.${x.name || "?"}`).join(" / ")}`),
+    auditSectionHtml("⚠️ 회원번호 중복", audit.duplicateNos, (g) => `${g.key}번 · ${g.members.map((x) => `${x.name || "?"} @${x.id || "?"}`).join(" / ")}`),
+    auditSectionHtml("⚠️ 닉네임 중복(아이디 다름)", audit.duplicateNames, (g) => `${g.members[0]?.name || g.key} · ${g.members.map((x) => `@${x.id || "?"}`).join(" / ")}`),
+    auditSectionHtml("⚠️ 아이디 누락", audit.missingIds),
+    auditSectionHtml("⚠️ 아이디 형식 오류", audit.invalidIds, (x) => `${x.no || "?"}. ${x.name || "?"} · ${x.idRaw}`),
+    auditSectionHtml("⚠️ 회원번호 누락", audit.missingNos),
+    auditSectionHtml("⚠️ 닉네임 누락", audit.missingNames),
+  ].filter(Boolean).join("");
+
+  $("rosterAuditDetails").innerHTML = sections || `<div class="audit-ok">✅ 명단 이상 없음</div>`;
+}
+
+function saveRosterBaseline() {
+  if (!adminLoggedIn) return toast("운영진 로그인이 필요합니다.");
+  const snapshot = rosterSnapshot();
+  writeStorageJson(ROSTER_BASELINE_KEY, snapshot);
+  renderRosterAudit();
+  toast(`현재 명단 ${snapshot.members.length}명을 기준으로 저장했습니다.`);
+}
+
+async function copyRosterAudit() {
+  const audit = lastRosterAudit || calculateRosterAudit();
+  const lines = ["[여우방 명단 자동 점검]", `신규 ${audit.newMembers.length}명 / 삭제 ${audit.removedMembers.length}명 / 아이디 변경 의심 ${audit.changedIds.length}명 / 중복·오류 ${audit.issueCount}건`];
+  if (audit.newMembers.length) lines.push("", "[신규 회원]", ...audit.newMembers.map(auditMemberText));
+  if (audit.removedMembers.length) lines.push("", "[삭제된 회원]", ...audit.removedMembers.map(auditMemberText));
+  if (audit.changedIds.length) lines.push("", "[아이디 변경 의심]", ...audit.changedIds.map((x) => `${x.no}. ${x.name} @${x.before} → @${x.after}`));
+  if (audit.duplicateIds.length) lines.push("", "[동일 아이디 중복]", ...audit.duplicateIds.map((g) => `@${g.key} : ${g.members.map((x) => `${x.no || "?"}.${x.name || "?"}`).join(" / ")}`));
+  if (audit.duplicateNos.length) lines.push("", "[회원번호 중복]", ...audit.duplicateNos.map((g) => `${g.key}번 : ${g.members.map((x) => `${x.name || "?"} @${x.id || "?"}`).join(" / ")}`));
+  if (audit.duplicateNames.length) lines.push("", "[닉네임 중복]", ...audit.duplicateNames.map((g) => `${g.members[0]?.name || g.key} : ${g.members.map((x) => `@${x.id || "?"}`).join(" / ")}`));
+  if (audit.missingIds.length) lines.push("", "[아이디 누락]", ...audit.missingIds.map(auditMemberText));
+  if (audit.invalidIds.length) lines.push("", "[아이디 형식 오류]", ...audit.invalidIds.map((x) => `${x.no || "?"}. ${x.name || "?"} ${x.idRaw}`));
+  if (audit.missingNos.length) lines.push("", "[회원번호 누락]", ...audit.missingNos.map(auditMemberText));
+  if (audit.missingNames.length) lines.push("", "[닉네임 누락]", ...audit.missingNames.map(auditMemberText));
+  if (lines.length === 2) lines.push("", "✅ 명단 이상 없음");
+  try { await writeClipboardText(lines.join("\n")); toast("명단 점검 결과를 복사했습니다."); }
+  catch (error) { toast(error.message || "점검 결과 복사 실패"); }
+}
+
 async function adminLogin() {
   const password = $("adminPassword").value.trim();
   if (!password) return;
@@ -1316,6 +1499,7 @@ async function adminLogin() {
     adminPasswordValue = password;
     $("adminLoginMsg").textContent = "";
     showAdminPanel();
+    renderRosterAudit();
     loadAdminLogs();
     matchGranted = true;
     followGranted = true;
@@ -1450,6 +1634,7 @@ $("adminLogoutBtn").onclick = adminLogout;
 $("openSheetBtn").onclick = () => window.open(sheetUrl(), "_blank");
 $("adminRefreshBtn").onclick = async () => {
   await Promise.allSettled([refreshPublicConfig(false), loadRoomList(true), loadMatchRoomList(true, true), loadNotices(false), loadAdminLogs()]);
+  renderRosterAudit();
   toast("전체 새로고침 완료");
 };
 
@@ -1468,6 +1653,9 @@ $("saveNoticeBtn").onclick = saveNotice;
 $("closeNoticeBtn").onclick = () => $("noticeCard").classList.add("hidden");
 $("refreshNoticeBtn").onclick = loadNotices;
 $("refreshLogsBtn").onclick = loadAdminLogs;
+$("refreshRosterAuditBtn")?.addEventListener("click", () => { renderRosterAudit(); toast("명단 점검을 다시 실행했습니다."); });
+$("saveRosterBaselineBtn")?.addEventListener("click", saveRosterBaseline);
+$("copyRosterAuditBtn")?.addEventListener("click", copyRosterAudit);
 $("updateNowBtn").onclick = async () => {
   if ("serviceWorker" in navigator) {
     const registrations = await navigator.serviceWorker.getRegistrations();
@@ -1494,14 +1682,12 @@ $("installBtn").onclick = async () => {
 };
 
 window.addEventListener("DOMContentLoaded", async () => {
-  // 첫 실행부터 접속 화면을 준비해 흰 화면이 보이지 않도록 합니다.
   showGate();
   setGate("loading", "여우방을 불러오는 중입니다.");
   renderResumeCard();
 
-  // 서비스워커는 초기 인증과 별개로 최신 버전을 먼저 확인합니다.
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=402").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=430").catch(() => {});
   }
 
   try {

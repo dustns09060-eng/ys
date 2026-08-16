@@ -1,16 +1,16 @@
-const CACHE = 'yeowoobang-first-load-v402';
+const CACHE = 'yeowoobang-v430-roster-audit';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=402',
-  './app.js?v=402',
-  './config.json?v=402',
-  './manifest.json?v=402',
-  './favicon-v20.png?v=402',
-  './icon-192-v20.png?v=402',
-  './icon-512-v20.png?v=402',
-  './app-logo-v20.png?v=402',
-  './preview-v35.png?v=402'
+  './style.css?v=430',
+  './app.js?v=430',
+  './config.json?v=430',
+  './manifest.json?v=430',
+  './favicon-v20.png?v=430',
+  './icon-192-v20.png?v=430',
+  './icon-512-v20.png?v=430',
+  './app-logo-v20.png?v=430',
+  './preview-v35.png?v=430'
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,14 +32,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
   if (url.hostname.includes('script.google.com') ||
       url.hostname.includes('googleusercontent.com') ||
       url.hostname.includes('docs.google.com') ||
       url.hostname.includes('cdn.jsdelivr.net')) return;
 
-  // 문서 이동은 네트워크 우선, 실패 시 캐시된 메인 화면으로 복구합니다.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -54,13 +52,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 정적 파일은 네트워크 우선으로 최신 파일을 받고, 오프라인일 때만 캐시를 사용합니다.
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
         }
         return response;
       })
