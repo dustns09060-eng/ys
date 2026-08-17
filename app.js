@@ -21,7 +21,7 @@ let noticeSignature = "";
 const APP_VERSION = "V52";
 
 let config = {
-  version: "V52 PUBLIC PUMASI ENTRY",
+  version: "V53 PUBLIC PUMASI ENTRY",
   appName: "여우방 팔로우리스트+맞팔확인",
   apiUrl: "",
   sheetId: "",
