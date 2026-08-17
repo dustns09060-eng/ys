@@ -1577,6 +1577,10 @@ async function changePassword(action, inputId, message) {
 
 // ===== V44 품앗이 확인 1차 개발본 =====
 let pumasiLastResult = null;
+let pumasiSelectedVideo = null;
+let pumasiSelectedImages = [];
+let pumasiVideoRecognized = [];
+let pumasiVideoReview = [];
 
 function pumasiNormalizeId(value) {
   return String(value || "")
@@ -1716,6 +1720,274 @@ function resetPumasiResult() {
   $("pumasiResultCard").classList.add("hidden");
 }
 
+
+function pumasiLevenshtein(a, b) {
+  a = String(a || ""); b = String(b || "");
+  const m = a.length, n = b.length;
+  const dp = Array.from({length:n+1}, (_,j)=>j);
+  for (let i=1;i<=m;i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j=1;j<=n;j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j]+1, dp[j-1]+1, prev + (a[i-1]===b[j-1]?0:1));
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+function pumasiExtractPossibleIds(text) {
+  const clean = String(text || "")
+    .replace(/\s*([._])\s*/g, "$1")
+    .toLowerCase();
+  const tokens = clean.match(/@?[a-z0-9._]{4,30}/g) || [];
+  return [...new Set(tokens.map(x => pumasiNormalizeId(x)))]
+    .filter(x => x && !/^(www|instagram|reply|like|likes|hours?|minutes?|view|more|follow)$/.test(x));
+}
+
+function pumasiMatchOcrText(text, participants) {
+  const exact = new Set();
+  const review = new Map();
+  const tokens = pumasiExtractPossibleIds(text);
+
+  for (const p of participants) {
+    const id = pumasiNormalizeId(p.id);
+    if (!id) continue;
+
+    const escId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp("(^|[^a-z0-9._])@?" + escId + "(?=$|[^a-z0-9._])", "i");
+    if (pattern.test(String(text || "").toLowerCase())) {
+      exact.add(id);
+      continue;
+    }
+
+    let best = null;
+    let bestDist = 99;
+    for (const token of tokens) {
+      if (Math.abs(token.length - id.length) > 2) continue;
+      const d = pumasiLevenshtein(token, id);
+      if (d < bestDist) { bestDist = d; best = token; }
+    }
+    const maxDist = id.length >= 8 ? 2 : 1;
+    if (best && bestDist <= maxDist) {
+      review.set(id, { id, seenAs: best, distance: bestDist });
+    }
+  }
+
+  return { exact, review };
+}
+
+function pumasiSetProgress(kind, status, pct) {
+  const wrap = $(kind === "video" ? "pumasiVideoProgress" : "pumasiImageProgress");
+  const statusEl = $(kind === "video" ? "pumasiVideoStatus" : "pumasiImageStatus");
+  const pctEl = $(kind === "video" ? "pumasiVideoPercent" : "pumasiImagePercent");
+  const bar = $(kind === "video" ? "pumasiVideoBar" : "pumasiImageBar");
+  wrap?.classList.remove("hidden");
+  if (statusEl) statusEl.textContent = status;
+  if (pctEl) pctEl.textContent = Math.max(0, Math.min(100, Math.round(pct))) + "%";
+  if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+}
+
+function pumasiWaitEvent(el, eventName) {
+  return new Promise((resolve, reject) => {
+    const ok = () => { cleanup(); resolve(); };
+    const bad = () => { cleanup(); reject(new Error("파일을 읽지 못했습니다.")); };
+    const cleanup = () => {
+      el.removeEventListener(eventName, ok);
+      el.removeEventListener("error", bad);
+    };
+    el.addEventListener(eventName, ok, {once:true});
+    el.addEventListener("error", bad, {once:true});
+  });
+}
+
+async function pumasiSeekVideo(video, time) {
+  if (Math.abs(video.currentTime - time) < 0.04) return;
+  const p = pumasiWaitEvent(video, "seeked");
+  video.currentTime = Math.min(Math.max(0, time), Math.max(0, video.duration - 0.05));
+  await p;
+}
+
+function pumasiDrawFrame(video) {
+  const maxWidth = 1500;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+  const ctx = canvas.getContext("2d", {willReadFrequently:true});
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const d = img.data;
+  for(let i=0;i<d.length;i+=4){
+    let gray = Math.round(d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114);
+    gray = gray < 150 ? Math.max(0,gray-25) : Math.min(255,gray+15);
+    d[i]=d[i+1]=d[i+2]=gray;
+  }
+  ctx.putImageData(img,0,0);
+  return canvas;
+}
+
+function pumasiRenderRecognized(participants) {
+  const wrap = $("pumasiVideoRecognizedWrap");
+  const list = $("pumasiVideoRecognizedList");
+  const count = $("pumasiVideoRecognizedCount");
+  if (!wrap || !list || !count) return;
+
+  count.textContent = pumasiVideoRecognized.length + "명";
+
+  const byId = new Map(participants.map(p => [p.id, p]));
+  const exactHtml = pumasiVideoRecognized.length
+    ? pumasiVideoRecognized.map(id => `<span>@${escapeHtml(byId.get(id)?.id || id)}</span>`).join("")
+    : '<small>정확히 인식된 아이디가 없습니다.</small>';
+
+  const reviewHtml = pumasiVideoReview.length
+    ? `<div class="pumasi-review-head"><strong>확인 필요 ${pumasiVideoReview.length}명</strong><small>OCR이 비슷하게 읽은 후보 · 자동 누락 처리하지 않음</small></div>
+       <div class="pumasi-review-list">
+         ${pumasiVideoReview.map(x => `
+           <label>
+             <input type="checkbox" class="pumasi-review-check" data-id="${escapeHtml(x.id)}">
+             <span><b>@${escapeHtml(x.id)}</b><small>영상 인식: ${escapeHtml(x.seenAs)}</small></span>
+           </label>`).join("")}
+       </div>`
+    : "";
+
+  list.innerHTML = exactHtml + reviewHtml;
+  wrap.classList.remove("hidden");
+}
+
+async function analyzePumasiVideo() {
+  const participants = parsePumasiParticipants($("pumasiParticipants").value);
+  if (!participants.length) return toast("참여자 명단을 먼저 입력해 주세요.");
+  if (!pumasiSelectedVideo) return toast("댓글 화면 녹화 영상을 먼저 선택해 주세요.");
+  if (!window.Tesseract) return toast("OCR 모듈을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.");
+
+  const btn = $("pumasiVideoAnalyzeBtn");
+  btn.disabled = true;
+  btn.textContent = "영상 분석 중...";
+  $("pumasiVideoRecognizedWrap")?.classList.add("hidden");
+
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  const url = URL.createObjectURL(pumasiSelectedVideo);
+  video.src = url;
+  let worker = null;
+
+  try {
+    pumasiSetProgress("video", "영상 정보 읽는 중...", 1);
+    await pumasiWaitEvent(video, "loadedmetadata");
+    if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error("영상 길이를 확인할 수 없습니다.");
+
+    const interval = Math.max(0.7, Number($("pumasiVideoInterval").value) || 1.25);
+    let times = [];
+    for (let t=0.2; t<video.duration; t+=interval) times.push(t);
+    if (times.length > 120) {
+      const step = times.length / 120;
+      times = Array.from({length:120}, (_,i)=>times[Math.floor(i*step)]);
+      $("pumasiVideoHint").textContent = "영상이 길어서 최대 120개 화면으로 나누어 분석합니다.";
+    }
+
+    pumasiSetProgress("video", "OCR 엔진 준비 중...", 3);
+    worker = await Tesseract.createWorker("eng");
+    try {
+      await worker.setParameters({ preserve_interword_spaces:"1", tessedit_pageseg_mode:"6" });
+    } catch (_) {}
+
+    const exact = new Set();
+    const review = new Map();
+
+    for (let i=0;i<times.length;i++) {
+      pumasiSetProgress("video", `${i+1}/${times.length} 화면에서 아이디 찾는 중`, 5 + (i/times.length)*90);
+      await pumasiSeekVideo(video, times[i]);
+      const canvas = pumasiDrawFrame(video);
+      const result = await worker.recognize(canvas);
+      const m = pumasiMatchOcrText(result?.data?.text || "", participants);
+      m.exact.forEach(id => exact.add(id));
+      m.review.forEach((v,id) => {
+        if (exact.has(id)) return;
+        const prev = review.get(id);
+        if (!prev || v.distance < prev.distance) review.set(id, v);
+      });
+      if (exact.size >= participants.length) break;
+    }
+
+    pumasiVideoRecognized = [...exact].sort();
+    pumasiVideoReview = [...review.values()].filter(x => !exact.has(x.id))
+      .sort((a,b)=>a.distance-b.distance || a.id.localeCompare(b.id));
+
+    pumasiRenderRecognized(participants);
+    pumasiSetProgress("video", pumasiVideoRecognized.length ? `완료 · ${pumasiVideoRecognized.length}명 인식` : "아이디 인식 실패 · 자동 판정 보류", 100);
+    $("pumasiVideoHint").textContent = pumasiVideoRecognized.length
+      ? "인식된 아이디와 확인 필요 후보를 검토한 뒤 누락자 비교를 눌러주세요."
+      : "전원을 누락자로 처리하지 않았습니다. 스크롤 속도를 늦춰 다시 녹화하거나 캡처로 확인해주세요.";
+  } catch (e) {
+    pumasiSetProgress("video", "영상 분석 실패", 100);
+    $("pumasiVideoHint").textContent = "오류: " + String(e.message || e);
+  } finally {
+    if (worker) { try { await worker.terminate(); } catch (_) {} }
+    URL.revokeObjectURL(url);
+    btn.disabled = false;
+    btn.textContent = "화면 녹화 분석 시작";
+  }
+}
+
+function comparePumasiVideo() {
+  const participants = parsePumasiParticipants($("pumasiParticipants").value);
+  const checked = [...document.querySelectorAll(".pumasi-review-check:checked")]
+    .map(el => pumasiNormalizeId(el.dataset.id)).filter(Boolean);
+  const completed = new Set([...pumasiVideoRecognized, ...checked]);
+  if (!completed.size) return toast("확정된 댓글 작성자가 없습니다. 자동 누락 판정은 하지 않습니다.");
+  renderPumasiResult(participants, completed, "댓글 화면 녹화 확인");
+}
+
+async function analyzePumasiImages() {
+  const participants = parsePumasiParticipants($("pumasiParticipants").value);
+  if (!participants.length) return toast("참여자 명단을 먼저 입력해 주세요.");
+  if (!pumasiSelectedImages.length) return toast("댓글 캡처를 먼저 선택해 주세요.");
+  if (!window.Tesseract) return toast("OCR 모듈을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.");
+
+  const btn = $("pumasiImageAnalyzeBtn");
+  btn.disabled = true;
+  btn.textContent = "캡처 분석 중...";
+  let worker = null;
+
+  try {
+    pumasiSetProgress("image", "OCR 엔진 준비 중...", 2);
+    worker = await Tesseract.createWorker("eng");
+    const exact = new Set();
+    const review = new Map();
+
+    for (let i=0;i<pumasiSelectedImages.length;i++) {
+      pumasiSetProgress("image", `${i+1}/${pumasiSelectedImages.length} 캡처에서 아이디 찾는 중`, 5 + (i/pumasiSelectedImages.length)*90);
+      const result = await worker.recognize(pumasiSelectedImages[i]);
+      const m = pumasiMatchOcrText(result?.data?.text || "", participants);
+      m.exact.forEach(id => exact.add(id));
+      m.review.forEach((v,id) => {
+        if (exact.has(id)) return;
+        const prev = review.get(id);
+        if (!prev || v.distance < prev.distance) review.set(id,v);
+      });
+    }
+
+    pumasiVideoRecognized = [...exact].sort();
+    pumasiVideoReview = [...review.values()].filter(x => !exact.has(x.id));
+    pumasiRenderRecognized(participants);
+    pumasiSetProgress("image", pumasiVideoRecognized.length ? `완료 · ${pumasiVideoRecognized.length}명 인식` : "아이디 인식 실패 · 자동 판정 보류", 100);
+    $("pumasiVideoRecognizedWrap")?.scrollIntoView({behavior:"smooth",block:"center"});
+  } catch (e) {
+    pumasiSetProgress("image", "캡처 분석 실패", 100);
+    toast("캡처 분석 오류: " + String(e.message || e));
+  } finally {
+    if (worker) { try { await worker.terminate(); } catch (_) {} }
+    btn.disabled = false;
+    btn.textContent = "캡처 분석 시작";
+  }
+}
+
+
 function initPumasiStage1() {
   const dateInput = $("pumasiDate");
   if (dateInput && !dateInput.value) {
@@ -1742,9 +2014,44 @@ function initPumasiStage1() {
     if (!participants.length) return toast("참여자 명단을 먼저 입력해 주세요.");
     if (!$("pumasiPostUrl").value.trim()) return toast("확인할 Instagram 게시물 링크를 입력해 주세요.");
     $("pumasiApiStatus").textContent =
-      "화면 연결은 완료됐어요. 다음 단계에서 회원별 Instagram 로그인과 Meta 댓글 API를 이 버튼에 연결합니다.";
-    toast("Meta API 연결은 다음 단계에서 진행합니다.");
+      "Instagram 자동 연결은 다음 단계에서 붙입니다. 지금은 아래 화면 녹화로 바로 확인할 수 있어요.";
+    toast("아래 화면 녹화 확인을 사용해 주세요.");
   });
+
+  $("pumasiCommentVideo")?.addEventListener("change", (e) => {
+    pumasiSelectedVideo = e.target.files?.[0] || null;
+    pumasiVideoRecognized = [];
+    pumasiVideoReview = [];
+    $("pumasiVideoRecognizedWrap")?.classList.add("hidden");
+    const info = $("pumasiVideoFileInfo");
+    if (!info) return;
+    if (!pumasiSelectedVideo) {
+      info.className = "pumasi-file-info empty";
+      info.textContent = "선택된 영상이 없습니다.";
+    } else {
+      info.className = "pumasi-file-info";
+      const mb = (pumasiSelectedVideo.size / 1024 / 1024).toFixed(1);
+      info.innerHTML = `<strong>${escapeHtml(pumasiSelectedVideo.name)}</strong><span>${mb} MB</span>`;
+    }
+  });
+
+  $("pumasiVideoAnalyzeBtn")?.addEventListener("click", analyzePumasiVideo);
+  $("pumasiVideoCompareBtn")?.addEventListener("click", comparePumasiVideo);
+
+  $("pumasiCommentImages")?.addEventListener("change", (e) => {
+    pumasiSelectedImages = [...(e.target.files || [])];
+    const info = $("pumasiImageFileInfo");
+    if (!info) return;
+    if (!pumasiSelectedImages.length) {
+      info.className = "pumasi-file-info empty";
+      info.textContent = "선택된 캡처가 없습니다.";
+    } else {
+      info.className = "pumasi-file-info";
+      info.innerHTML = `<strong>${pumasiSelectedImages.length}장 선택됨</strong><span>캡처 OCR</span>`;
+    }
+  });
+
+  $("pumasiImageAnalyzeBtn")?.addEventListener("click", analyzePumasiImages);
 }
 
 
