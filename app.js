@@ -1583,12 +1583,87 @@ let pumasiVideoRecognized = [];
 let pumasiVideoReview = [];
 let pumasiVideoAutoCorrected = [];
 const PUMASI_SELF_ID_KEY = "yeowoobang:pumasiSelfId:v1";
+const PUMASI_CLIENT_ID_STORAGE_KEY = "yeowoobang:pumasiClientId:v1";
 
 function pumasiNormalizeId(value) {
   return String(value || "")
     .trim()
     .replace(/^@+/, "")
     .toLowerCase();
+}
+
+function getPumasiClientId() {
+  let clientId = "";
+  try { clientId = String(localStorage.getItem(PUMASI_CLIENT_ID_STORAGE_KEY) || "").trim(); } catch (_) {}
+  if (/^[A-Za-z0-9._:-]{8,120}$/.test(clientId)) return clientId;
+
+  const randomPart = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+
+  clientId = `yb-${randomPart}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 120);
+  try { localStorage.setItem(PUMASI_CLIENT_ID_STORAGE_KEY, clientId); } catch (_) {}
+  return clientId;
+}
+
+async function pumasiApiGet(action, params = {}) {
+  if (!config.apiUrl) throw new Error("Apps Script 주소가 설정되지 않았습니다.");
+  const url = new URL(config.apiUrl);
+  url.searchParams.set("action", action);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== "") url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set("_t", Date.now().toString());
+
+  const response = await fetch(url.toString(), { method: "GET", cache: "no-store", redirect: "follow" });
+  if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  const data = await response.json();
+  if (!data.ok) throw new Error(data.error || data.message || "품앗이 API 요청 실패");
+  return data;
+}
+
+function savePumasiConnectedUsername(username) {
+  const id = pumasiNormalizeId(username);
+  if (!id) return "";
+  try { localStorage.setItem(PUMASI_SELF_ID_KEY, id); } catch (_) {}
+  return id;
+}
+
+async function refreshPumasiAuthStatus(showToast = false) {
+  const status = $("pumasiApiStatus");
+  const btn = $("pumasiConnectBtn");
+  if (!status) return null;
+  try {
+    const data = await pumasiApiGet("pumasiAuthStatus", { clientId: getPumasiClientId() });
+    if (data.connected) {
+      const username = savePumasiConnectedUsername(data.username);
+      status.textContent = `Instagram 연결됨 · @${username || data.username || "계정"}`;
+      if (btn) btn.textContent = "Instagram 재연결";
+      if (showToast) toast(`Instagram @${username || data.username || "계정"} 연결 완료`);
+    } else {
+      status.textContent = "연결된 계정 없음";
+      if (btn) btn.textContent = "Instagram 연결";
+    }
+    return data;
+  } catch (e) {
+    status.textContent = "Instagram 연결 상태 확인 실패 · " + String(e.message || e);
+    return null;
+  }
+}
+
+function handlePumasiOAuthReturn() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("pumasi_oauth") !== "success") return false;
+
+  savePumasiConnectedUsername(params.get("username") || "");
+  params.delete("pumasi_oauth");
+  params.delete("username");
+  const query = params.toString();
+  const cleanUrl = location.pathname + (query ? `?${query}` : "") + location.hash;
+  try { history.replaceState({}, document.title, cleanUrl); } catch (_) {}
+
+  setTimeout(() => { refreshPumasiAuthStatus(true).catch(() => {}); }, 250);
+  return true;
 }
 
 function parsePumasiParticipants(text) {
@@ -1670,13 +1745,7 @@ function refreshPumasiParticipantCount() {
 function getPumasiSelfId(participants = []) {
   let saved = "";
   try { saved = pumasiNormalizeId(localStorage.getItem(PUMASI_SELF_ID_KEY) || ""); } catch (_) {}
-  if (saved && participants.some(p => p.id === saved)) return saved;
-
-  // Instagram OAuth 연결이 붙으면 이 저장값을 로그인한 사용자명으로 덮어쓰면 됩니다.
-  // 현재 여우방 운영 계정은 명단에 있을 때 자동 제외합니다.
-  const owner = "tlso_94";
-  if (participants.some(p => p.id === owner)) return owner;
-  return "";
+  return saved && participants.some(p => p.id === saved) ? saved : "";
 }
 
 function getPumasiCheckTargets(participants) {
@@ -2094,6 +2163,9 @@ function initPumasiStage1() {
     ].join("-");
   }
 
+  handlePumasiOAuthReturn();
+  refreshPumasiAuthStatus(false).catch(() => {});
+
   $("pumasiParticipants")?.addEventListener("input", refreshPumasiParticipantCount);
   $("pumasiPasteCheckBtn")?.addEventListener("click", runPumasiPasteCheck);
   $("pumasiResetBtn")?.addEventListener("click", resetPumasiResult);
@@ -2105,14 +2177,16 @@ function initPumasiStage1() {
     const status = $("pumasiApiStatus");
     try {
       btn.disabled = true;
-      status.textContent = "Instagram API 연결 확인 중...";
-      const data = await apiGet("status");
-      status.textContent = `Instagram 연결됨 · @${data.username || "계정"}`;
-      toast("Instagram API 연결 성공");
+      status.textContent = "Instagram 로그인 페이지를 준비하는 중...";
+      const data = await pumasiApiGet("pumasiAuthStart", { clientId: getPumasiClientId() });
+      if (!data.authUrl) throw new Error("Instagram 로그인 주소를 받지 못했습니다.");
+      status.textContent = "Instagram 로그인 화면으로 이동합니다...";
+      window.location.href = data.authUrl;
     } catch (e) {
-      status.textContent = "Instagram API 연결 실패 · " + String(e.message || e);
-      toast("Instagram API 연결을 확인해 주세요.");
-    } finally { btn.disabled = false; }
+      status.textContent = "Instagram 연결 시작 실패 · " + String(e.message || e);
+      toast("Instagram 연결을 시작하지 못했습니다.");
+      btn.disabled = false;
+    }
   });
 
   $("pumasiApiBtn")?.addEventListener("click", async () => {
@@ -2126,15 +2200,14 @@ function initPumasiStage1() {
     try {
       btn.disabled = true;
       status.textContent = "Meta API에서 댓글 작성자를 불러오는 중...";
-      if (!config.apiUrl) throw new Error("Apps Script 주소가 설정되지 않았습니다.");
-      const url = new URL(config.apiUrl);
-      url.searchParams.set("action", "comments");
-      url.searchParams.set("postUrl", postUrl);
-      url.searchParams.set("_t", Date.now().toString());
-      const response = await fetch(url.toString(), { method: "GET", cache: "no-store", redirect: "follow" });
-      if (!response.ok) throw new Error(`API HTTP ${response.status}`);
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.error || data.message || "댓글 API 요청 실패");
+      const auth = await pumasiApiGet("pumasiAuthStatus", { clientId: getPumasiClientId() });
+      if (!auth.connected) throw new Error("먼저 Instagram 계정을 연결해 주세요.");
+      savePumasiConnectedUsername(auth.username);
+
+      const data = await pumasiApiGet("pumasiComments", {
+        clientId: getPumasiClientId(),
+        postUrl,
+      });
 
       const completed = new Set((data.comments || []).map(c => pumasiNormalizeId(c.username)).filter(Boolean));
       const uniqueWriters = new Set(completed);
