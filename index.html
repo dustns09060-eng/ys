@@ -44,10 +44,8 @@
     @keyframes bootSpin{to{transform:rotate(360deg)}}
   </style>
 <style>
-/* V52 - 이용하기 > 품앗이 > 운영진 */
+/* V53 - 맞팔 프로그램 전용: 이용하기 > 운영진 */
 .access-role-grid{grid-template-columns:1fr!important}
-.access-role.pumasi{border-color:#dce9e3;background:#f3faf6}
-.access-role.pumasi .role-icon{color:#247255}
 </style>
 </head>
 <body>
@@ -84,10 +82,6 @@
         <button id="generalAccessBtn" class="access-role general" type="button">
           <span class="role-icon">🦊</span>
           <strong>이용하기</strong>
-        </button>
-        <button id="pumasiAccessBtn" class="access-role pumasi" type="button">
-          <span class="role-icon">✓</span>
-          <strong>품앗이</strong>
         </button>
         <button id="adminAccessBtn" class="access-role admin" type="button">
           <span class="role-icon">⚙️</span>
@@ -266,173 +260,6 @@
       </div>
     </section>
 
-
-    <section id="pumasiView" class="view">
-      <section class="card pumasi-hero">
-        <div class="section-title-row">
-          <div>
-            <h2>품앗이 확인</h2>
-            <p class="subtext">참여자들이 내 게시물에 댓글을 남겼는지 확인해요.</p>
-          </div>
-          <span class="pumasi-stage-badge">1차 개발본</span>
-        </div>
-
-        <div class="ig-connect-card">
-          <div>
-            <span class="ig-connect-label">Instagram 계정</span>
-            <strong id="pumasiIgState">연결된 계정 없음</strong>
-            <small id="pumasiIgHelp">프로페셔널 계정은 다음 단계에서 Meta API 자동 연결을 붙일 예정입니다.</small>
-          </div>
-          <button id="pumasiConnectBtn" class="outline" type="button">Instagram 연결</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h3>1. 품앗이 정보</h3>
-        <div class="pumasi-form-grid">
-          <label>
-            <span>품앗이 날짜</span>
-            <input id="pumasiDate" type="date" />
-          </label>
-          <label>
-            <span>확인할 게시물 링크</span>
-            <input id="pumasiPostUrl" type="text" placeholder="https://www.instagram.com/p/..." />
-          </label>
-        </div>
-
-        <label class="pumasi-label">
-          <span>참여자 명단</span>
-          <small>닉네임과 @인스타아이디를 그대로 붙여넣어도 됩니다.</small>
-          <textarea id="pumasiParticipants" placeholder="예)
-유별 @tlso_94
-꼬꼬 @h._.ggoggo
-이수 @awesome_in_autumn"></textarea>
-        </label>
-        <div class="pumasi-count-row">
-          <span>인식된 참여자</span>
-          <strong id="pumasiParticipantCount">0명</strong>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="section-title-row">
-          <div>
-            <h3>2. 댓글 확인</h3>
-            <p class="subtext">Instagram 연결 후 API 자동 확인을 먼저 시도하고, 안 되면 화면 녹화로 확인해요.</p>
-          </div>
-        </div>
-
-        <button id="pumasiApiBtn" class="primary" type="button">💬 댓글 자동 확인</button>
-        <p id="pumasiApiStatus" class="status">현재는 보조 확인 기능부터 사용할 수 있어요.</p>
-
-        <div class="pumasi-divider"><span>API가 안 될 때</span></div>
-
-        <div class="pumasi-fallback-highlight">
-          <span class="pumasi-recommend">권장</span>
-          <strong>🎥 댓글 화면 녹화로 확인</strong>
-          <p>Instagram 댓글창을 처음부터 끝까지 천천히 내려가며 화면 녹화한 뒤 영상 1개를 올려주세요. 영상은 서버에 업로드하지 않고 현재 기기에서 분석합니다.</p>
-        </div>
-
-        <label class="pumasi-video-drop" for="pumasiCommentVideo">
-          <span class="pumasi-video-icon">▶</span>
-          <div>
-            <strong>댓글 화면 녹화 영상 선택</strong>
-            <small>MP4 · WEBM 등 / 모바일 화면 녹화 파일 가능</small>
-          </div>
-        </label>
-        <input id="pumasiCommentVideo" type="file" accept="video/*" hidden>
-
-        <div id="pumasiVideoFileInfo" class="pumasi-file-info empty">선택된 영상이 없습니다.</div>
-
-        <div class="pumasi-video-options">
-          <label>
-            <span>분석 정밀도</span>
-            <select id="pumasiVideoInterval">
-              <option value="2">빠르게 · 2초 간격</option>
-              <option value="1.25" selected>권장 · 1.25초 간격</option>
-              <option value="0.8">정밀 · 0.8초 간격</option>
-            </select>
-          </label>
-        </div>
-
-        <div id="pumasiVideoProgress" class="pumasi-progress hidden">
-          <div><strong id="pumasiVideoStatus">영상 준비 중</strong><span id="pumasiVideoPercent">0%</span></div>
-          <div class="pumasi-meter"><i id="pumasiVideoBar"></i></div>
-          <small id="pumasiVideoHint">댓글 작성자 아이디가 화면에 충분히 오래 보이도록 천천히 스크롤해주세요.</small>
-        </div>
-
-        <button id="pumasiVideoAnalyzeBtn" class="primary pumasi-full-btn" type="button">화면 녹화 분석 시작</button>
-
-        <div id="pumasiVideoRecognizedWrap" class="pumasi-recognized hidden">
-          <div class="section-title-row">
-            <div>
-              <strong>영상에서 찾은 댓글 작성자</strong>
-              <p class="subtext">OCR이 비슷하게 읽은 아이디는 확인 필요로 표시합니다.</p>
-            </div>
-            <span id="pumasiVideoRecognizedCount" class="pumasi-recognized-count">0명</span>
-          </div>
-          <div id="pumasiVideoRecognizedList" class="pumasi-id-cloud"></div>
-          <button id="pumasiVideoCompareBtn" class="outline pumasi-full-btn" type="button">이 결과로 누락자 비교</button>
-        </div>
-
-        <div class="pumasi-divider"><span>또는</span></div>
-
-        <details class="pumasi-secondary-check">
-          <summary>📷 댓글 캡처로 확인</summary>
-          <p>댓글 작성자 아이디가 보이는 캡처를 여러 장 선택하세요.</p>
-          <label class="pumasi-video-drop" for="pumasiCommentImages">
-            <span class="pumasi-video-icon">＋</span>
-            <div>
-              <strong>댓글 캡처 선택</strong>
-              <small>JPG · PNG · WEBP · 여러 장 가능</small>
-            </div>
-          </label>
-          <input id="pumasiCommentImages" type="file" accept="image/*" multiple hidden>
-          <div id="pumasiImageFileInfo" class="pumasi-file-info empty">선택된 캡처가 없습니다.</div>
-          <div id="pumasiImageProgress" class="pumasi-progress hidden">
-            <div><strong id="pumasiImageStatus">캡처 준비 중</strong><span id="pumasiImagePercent">0%</span></div>
-            <div class="pumasi-meter"><i id="pumasiImageBar"></i></div>
-            <small>아이디의 점(.)·밑줄(_)은 OCR에서 틀릴 수 있어 확인 필요 후보로 보정합니다.</small>
-          </div>
-          <button id="pumasiImageAnalyzeBtn" class="outline pumasi-full-btn" type="button">캡처 분석 시작</button>
-        </details>
-
-        <details class="pumasi-secondary-check pumasi-paste-last">
-          <summary>⌨ 댓글 텍스트 붙여넣기 <span>PC에서 아이디까지 복사되는 경우만</span></summary>
-          <p>Instagram에서는 작성자 아이디가 복사되지 않는 경우가 많아 마지막 보조 기능으로만 사용합니다.</p>
-          <textarea id="pumasiCommentsText" placeholder="댓글 작성자 아이디까지 함께 복사되는 경우에만 붙여넣기"></textarea>
-          <button id="pumasiPasteCheckBtn" class="outline pumasi-full-btn" type="button">붙여넣은 댓글로 확인</button>
-        </details>
-      </section>
-
-      <section id="pumasiResultCard" class="card hidden">
-        <div class="section-title-row">
-          <div>
-            <h3>3. 확인 결과</h3>
-            <p id="pumasiResultMeta" class="subtext"></p>
-          </div>
-          <button id="pumasiResetBtn" class="icon-btn" type="button" aria-label="품앗이 결과 초기화">↻</button>
-        </div>
-
-        <div class="pumasi-summary">
-          <article><span>전체</span><strong id="pumasiTotalCount">0명</strong></article>
-          <article class="done"><span>댓글 완료</span><strong id="pumasiDoneCount">0명</strong></article>
-          <article class="missing"><span>댓글 누락</span><strong id="pumasiMissingCount">0명</strong></article>
-        </div>
-
-        <div class="pumasi-result-actions">
-          <button id="pumasiCopyMissingBtn" class="outline" type="button">누락자 복사</button>
-          <button id="pumasiCopyMentionBtn" class="outline" type="button">@멘션 복사</button>
-        </div>
-        <div id="pumasiResultList" class="pumasi-result-list"></div>
-      </section>
-
-      <section class="card pumasi-roadmap">
-        <strong>다음 연결 단계</strong>
-        <p>Instagram 로그인 → 본인 게시물 조회 → 댓글 작성자 API 자동 수집 → API 불가/일반 계정은 화면 녹화(권장)·캡처로 확인</p>
-      </section>
-    </section>
-
     <section id="noticeView" class="view">
       <section class="card notice-page-card">
         <div class="section-title-row">
@@ -589,9 +416,6 @@
     <button class="nav-btn" data-view="matchView" type="button">
       <span class="nav-icon">↔</span><span>맞팔확인</span>
     </button>
-    <button class="nav-btn" data-view="pumasiView" type="button">
-      <span class="nav-icon">✓</span><span>품앗이</span>
-    </button>
     <button id="noticeNavBtn" class="nav-btn" data-view="noticeView" type="button">
       <span class="nav-icon">🔔</span><span>공지</span>
     </button>
@@ -601,7 +425,6 @@
   </nav>
 
   <div id="toast" class="toast"></div>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-  <script src="app.js?v=450"></script>
+  <script src="app.js?v=530"></script>
 </body>
 </html>
