@@ -1594,23 +1594,47 @@ function parsePumasiParticipants(text) {
     const line = raw.trim();
     if (!line) continue;
 
-    const matches = [...line.matchAll(/@([A-Za-z0-9._]{1,30})/g)];
-    let id = matches.length ? matches[matches.length - 1][1] : "";
+    // Instagram 게시물 URL 줄은 참여자로 세지 않음
+    if (/https?:\/\/(?:www\.)?instagram\.com\//i.test(line)) continue;
 
+    let id = "";
+    let name = "";
+
+    // 1) @아이디 형식: "꼬꼬 @h._.ggoggo"
+    const atMatches = [...line.matchAll(/@([A-Za-z0-9._]{1,30})/g)];
+    if (atMatches.length) {
+      id = atMatches[atMatches.length - 1][1];
+      name = line
+        .replace(/^\s*\d+\s*[.)-]?\s*/, "")
+        .replace(new RegExp("@?" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$", "i"), "")
+        .trim();
+    }
+
+    // 2) 품앗이 명단에서 실제로 쓰는 "번호. 닉네임/인스타아이디" 형식
+    // 예: "19. 연주니/kite_jun_"
     if (!id) {
-      const tokens = line.split(/\s+/);
+      const slashMatch = line.match(/^\s*(?:\d+\s*[.)-]?\s*)?(.+?)\s*\/\s*@?([A-Za-z0-9._]{1,30})\s*$/);
+      if (slashMatch) {
+        name = slashMatch[1].trim();
+        id = slashMatch[2];
+      }
+    }
+
+    // 3) "번호 닉네임 아이디" 또는 아이디만 있는 단순 형식
+    if (!id) {
+      const cleaned = line.replace(/^\s*\d+\s*[.)-]?\s*/, "").trim();
+      const tokens = cleaned.split(/\s+/);
       const candidate = tokens[tokens.length - 1] || "";
-      if (/^[A-Za-z0-9._]{1,30}$/.test(candidate)) id = candidate;
+      if (/^[A-Za-z0-9._]{1,30}$/.test(candidate)) {
+        id = candidate;
+        name = tokens.slice(0, -1).join(" ").trim();
+      }
     }
 
     id = pumasiNormalizeId(id);
     if (!id || seen.has(id)) continue;
 
     seen.add(id);
-    const name = line
-      .replace(new RegExp("@?" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i"), "")
-      .trim();
-
     items.push({ name: name || id, id });
   }
 
