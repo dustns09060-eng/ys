@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json?v=430" />
   <link rel="icon" href="favicon-v20.png?v=430" type="image/png" />
   <link rel="apple-touch-icon" href="icon-192-v20.png?v=430" />
-  <link rel="stylesheet" href="style.css?v=430" />
+  <link rel="stylesheet" href="style.css?v=440" />
 
   <meta property="og:locale" content="ko_KR" />
   <meta property="og:type" content="website" />
@@ -256,6 +256,103 @@
       </div>
     </section>
 
+
+    <section id="pumasiView" class="view">
+      <section class="card pumasi-hero">
+        <div class="section-title-row">
+          <div>
+            <h2>품앗이 확인</h2>
+            <p class="subtext">참여자들이 내 게시물에 댓글을 남겼는지 확인해요.</p>
+          </div>
+          <span class="pumasi-stage-badge">1차 개발본</span>
+        </div>
+
+        <div class="ig-connect-card">
+          <div>
+            <span class="ig-connect-label">Instagram 계정</span>
+            <strong id="pumasiIgState">연결된 계정 없음</strong>
+            <small id="pumasiIgHelp">프로페셔널 계정은 다음 단계에서 Meta API 자동 연결을 붙일 예정입니다.</small>
+          </div>
+          <button id="pumasiConnectBtn" class="outline" type="button">Instagram 연결</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>1. 품앗이 정보</h3>
+        <div class="pumasi-form-grid">
+          <label>
+            <span>품앗이 날짜</span>
+            <input id="pumasiDate" type="date" />
+          </label>
+          <label>
+            <span>확인할 게시물 링크</span>
+            <input id="pumasiPostUrl" type="text" placeholder="https://www.instagram.com/p/..." />
+          </label>
+        </div>
+
+        <label class="pumasi-label">
+          <span>참여자 명단</span>
+          <small>닉네임과 @인스타아이디를 그대로 붙여넣어도 됩니다.</small>
+          <textarea id="pumasiParticipants" placeholder="예)
+유별 @tlso_94
+꼬꼬 @h._.ggoggo
+이수 @awesome_in_autumn"></textarea>
+        </label>
+        <div class="pumasi-count-row">
+          <span>인식된 참여자</span>
+          <strong id="pumasiParticipantCount">0명</strong>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-title-row">
+          <div>
+            <h3>2. 댓글 확인</h3>
+            <p class="subtext">최종 버전에서는 Instagram 연결 후 API로 자동 확인합니다.</p>
+          </div>
+        </div>
+
+        <button id="pumasiApiBtn" class="primary" type="button">💬 댓글 자동 확인</button>
+        <p id="pumasiApiStatus" class="status">현재 1차 개발본에서는 화면·명단 비교 기능을 먼저 테스트합니다.</p>
+
+        <div class="pumasi-divider"><span>API가 안 될 때 사용할 보조 확인</span></div>
+
+        <label class="pumasi-label">
+          <span>댓글 텍스트 붙여넣기</span>
+          <small>PC 등에서 댓글을 복사할 수 있으면 통째로 붙여넣으세요.</small>
+          <textarea id="pumasiCommentsText" placeholder="댓글 작성자 아이디와 댓글 내용을 그대로 붙여넣기"></textarea>
+        </label>
+        <button id="pumasiPasteCheckBtn" class="outline pumasi-full-btn" type="button">붙여넣은 댓글로 확인</button>
+      </section>
+
+      <section id="pumasiResultCard" class="card hidden">
+        <div class="section-title-row">
+          <div>
+            <h3>3. 확인 결과</h3>
+            <p id="pumasiResultMeta" class="subtext"></p>
+          </div>
+          <button id="pumasiResetBtn" class="icon-btn" type="button" aria-label="품앗이 결과 초기화">↻</button>
+        </div>
+
+        <div class="pumasi-summary">
+          <article><span>전체</span><strong id="pumasiTotalCount">0명</strong></article>
+          <article class="done"><span>댓글 완료</span><strong id="pumasiDoneCount">0명</strong></article>
+          <article class="missing"><span>댓글 누락</span><strong id="pumasiMissingCount">0명</strong></article>
+        </div>
+
+        <div class="pumasi-result-actions">
+          <button id="pumasiCopyMissingBtn" class="outline" type="button">누락자 복사</button>
+          <button id="pumasiCopyMentionBtn" class="outline" type="button">@멘션 복사</button>
+        </div>
+        <div id="pumasiResultList" class="pumasi-result-list"></div>
+      </section>
+
+      <section class="card pumasi-roadmap">
+        <strong>다음 연결 단계</strong>
+        <p>Instagram 로그인 → 본인 게시물 조회 → 댓글 작성자 API 자동 수집 → 일반 계정은 화면 녹화/붙여넣기 방식으로 확인</p>
+      </section>
+    </section>
+
     <section id="noticeView" class="view">
       <section class="card notice-page-card">
         <div class="section-title-row">
@@ -412,6 +509,9 @@
     <button class="nav-btn" data-view="matchView" type="button">
       <span class="nav-icon">↔</span><span>맞팔확인</span>
     </button>
+    <button class="nav-btn" data-view="pumasiView" type="button">
+      <span class="nav-icon">✓</span><span>품앗이</span>
+    </button>
     <button id="noticeNavBtn" class="nav-btn" data-view="noticeView" type="button">
       <span class="nav-icon">🔔</span><span>공지</span>
     </button>
@@ -421,6 +521,6 @@
   </nav>
 
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=430"></script>
+  <script src="app.js?v=440"></script>
 </body>
 </html>

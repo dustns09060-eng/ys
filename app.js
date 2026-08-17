@@ -1573,6 +1573,157 @@ async function changePassword(action, inputId, message) {
   if (data) $(inputId).value = "";
 }
 
+
+
+// ===== V44 품앗이 확인 1차 개발본 =====
+let pumasiLastResult = null;
+
+function pumasiNormalizeId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+}
+
+function parsePumasiParticipants(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const seen = new Set();
+  const items = [];
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    const matches = [...line.matchAll(/@([A-Za-z0-9._]{1,30})/g)];
+    let id = matches.length ? matches[matches.length - 1][1] : "";
+
+    if (!id) {
+      const tokens = line.split(/\s+/);
+      const candidate = tokens[tokens.length - 1] || "";
+      if (/^[A-Za-z0-9._]{1,30}$/.test(candidate)) id = candidate;
+    }
+
+    id = pumasiNormalizeId(id);
+    if (!id || seen.has(id)) continue;
+
+    seen.add(id);
+    const name = line
+      .replace(new RegExp("@?" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i"), "")
+      .trim();
+
+    items.push({ name: name || id, id });
+  }
+
+  return items;
+}
+
+function getPumasiCommentIds(text, participants) {
+  const lower = String(text || "").toLowerCase();
+  const found = new Set();
+
+  participants.forEach((person) => {
+    const id = pumasiNormalizeId(person.id);
+    if (!id) return;
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp("(^|[^a-z0-9._])@?" + escaped + "(?=$|[^a-z0-9._])", "i");
+    if (pattern.test(lower)) found.add(id);
+  });
+
+  return found;
+}
+
+function refreshPumasiParticipantCount() {
+  const participants = parsePumasiParticipants($("pumasiParticipants")?.value || "");
+  if ($("pumasiParticipantCount")) $("pumasiParticipantCount").textContent = participants.length + "명";
+}
+
+function renderPumasiResult(participants, completed, sourceLabel) {
+  const missing = participants.filter((p) => !completed.has(p.id));
+  pumasiLastResult = { participants, completed, missing };
+
+  $("pumasiResultCard").classList.remove("hidden");
+  $("pumasiTotalCount").textContent = participants.length + "명";
+  $("pumasiDoneCount").textContent = (participants.length - missing.length) + "명";
+  $("pumasiMissingCount").textContent = missing.length + "명";
+
+  const date = $("pumasiDate").value || "날짜 미지정";
+  $("pumasiResultMeta").textContent = `${date} · ${sourceLabel}`;
+
+  $("pumasiResultList").innerHTML = participants.map((person, index) => {
+    const done = completed.has(person.id);
+    return `
+      <div class="pumasi-result-item">
+        <span class="pumasi-no">${index + 1}</span>
+        <span class="pumasi-person"><strong>${escapeHtml(person.name)}</strong><small>@${escapeHtml(person.id)}</small></span>
+        <span class="pumasi-status ${done ? "ok" : "no"}">${done ? "✓ 댓글 완료" : "✕ 댓글 누락"}</span>
+        <a class="insta-btn" href="https://www.instagram.com/${encodeURIComponent(person.id)}/" target="_blank" rel="noopener">열기</a>
+      </div>`;
+  }).join("");
+
+  $("pumasiResultCard").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function copyPumasiMissing(mentionOnly) {
+  if (!pumasiLastResult) return toast("먼저 댓글 확인을 해주세요.");
+  const missing = pumasiLastResult.missing || [];
+  if (!missing.length) return toast("댓글 누락자가 없습니다.");
+
+  const text = mentionOnly
+    ? missing.map((p) => "@" + p.id).join(" ")
+    : missing.map((p) => `${p.name} @${p.id}`).join("\n");
+
+  await copyText(text);
+  toast(mentionOnly ? "@멘션을 복사했습니다." : "누락자 명단을 복사했습니다.");
+}
+
+function runPumasiPasteCheck() {
+  const participants = parsePumasiParticipants($("pumasiParticipants").value);
+  if (!participants.length) return toast("참여자 명단을 먼저 붙여넣어 주세요.");
+
+  const comments = $("pumasiCommentsText").value.trim();
+  if (!comments) return toast("댓글 내용을 먼저 붙여넣어 주세요.");
+
+  const completed = getPumasiCommentIds(comments, participants);
+  renderPumasiResult(participants, completed, "댓글 텍스트 확인");
+}
+
+function resetPumasiResult() {
+  pumasiLastResult = null;
+  $("pumasiResultCard").classList.add("hidden");
+}
+
+function initPumasiStage1() {
+  const dateInput = $("pumasiDate");
+  if (dateInput && !dateInput.value) {
+    const now = new Date();
+    dateInput.value = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0")
+    ].join("-");
+  }
+
+  $("pumasiParticipants")?.addEventListener("input", refreshPumasiParticipantCount);
+  $("pumasiPasteCheckBtn")?.addEventListener("click", runPumasiPasteCheck);
+  $("pumasiResetBtn")?.addEventListener("click", resetPumasiResult);
+  $("pumasiCopyMissingBtn")?.addEventListener("click", () => copyPumasiMissing(false));
+  $("pumasiCopyMentionBtn")?.addEventListener("click", () => copyPumasiMissing(true));
+
+  $("pumasiConnectBtn")?.addEventListener("click", () => {
+    toast("Instagram 로그인 연결은 다음 개발 단계에서 붙입니다.");
+  });
+
+  $("pumasiApiBtn")?.addEventListener("click", () => {
+    const participants = parsePumasiParticipants($("pumasiParticipants").value);
+    if (!participants.length) return toast("참여자 명단을 먼저 입력해 주세요.");
+    if (!$("pumasiPostUrl").value.trim()) return toast("확인할 Instagram 게시물 링크를 입력해 주세요.");
+    $("pumasiApiStatus").textContent =
+      "화면 연결은 완료됐어요. 다음 단계에서 회원별 Instagram 로그인과 Meta 댓글 API를 이 버튼에 연결합니다.";
+    toast("Meta API 연결은 다음 단계에서 진행합니다.");
+  });
+}
+
+
 document.querySelectorAll(".nav-btn").forEach((button) => {
   button.onclick = () => showView(button.dataset.view);
 });
@@ -1624,6 +1775,8 @@ $("resetBtn").onclick = resetAnalysis;
 $("searchInput").oninput = renderMatchList;
 $("copyBtn").onclick = copyCurrent;
 $("mentionBtn").onclick = copyMentions;
+initPumasiStage1();
+
 document.querySelectorAll(".tab").forEach((button) => {
   button.onclick = () => showTab(button.dataset.tab);
 });
