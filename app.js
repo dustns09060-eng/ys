@@ -18,7 +18,7 @@ let followGranted = false;
 let gateMode = "loading";
 let securityVersion = "";
 let noticeSignature = "";
-const APP_VERSION = "V52";
+const APP_VERSION = "V53";
 
 let config = {
   version: "V53 PUBLIC PUMASI ENTRY",
