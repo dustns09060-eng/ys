@@ -43,6 +43,12 @@
     #bootScreen.boot-slow .boot-retry{display:block}
     @keyframes bootSpin{to{transform:rotate(360deg)}}
   </style>
+<style>
+/* V52 - 이용하기 > 품앗이 > 운영진 */
+.access-role-grid{grid-template-columns:1fr!important}
+.access-role.pumasi{border-color:#dce9e3;background:#f3faf6}
+.access-role.pumasi .role-icon{color:#247255}
+</style>
 </head>
 <body>
   <div id="bootScreen" role="status" aria-live="polite">
@@ -78,6 +84,10 @@
         <button id="generalAccessBtn" class="access-role general" type="button">
           <span class="role-icon">🦊</span>
           <strong>이용하기</strong>
+        </button>
+        <button id="pumasiAccessBtn" class="access-role pumasi" type="button">
+          <span class="role-icon">✓</span>
+          <strong>품앗이</strong>
         </button>
         <button id="adminAccessBtn" class="access-role admin" type="button">
           <span class="role-icon">⚙️</span>
@@ -313,7 +323,7 @@
         </div>
 
         <button id="pumasiApiBtn" class="primary" type="button">💬 댓글 자동 확인</button>
-        <p id="pumasiApiStatus" class="status">Instagram API 연결 후 댓글 작성자를 자동으로 확인할 수 있어요.</p>
+        <p id="pumasiApiStatus" class="status">현재는 보조 확인 기능부터 사용할 수 있어요.</p>
 
         <div class="pumasi-divider"><span>API가 안 될 때</span></div>
 
@@ -592,6 +602,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-  <script src="app.js?v=460"></script>
+  <script src="app.js?v=450"></script>
 </body>
 </html>

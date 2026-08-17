@@ -18,10 +18,10 @@ let followGranted = false;
 let gateMode = "loading";
 let securityVersion = "";
 let noticeSignature = "";
-const APP_VERSION = "V46";
+const APP_VERSION = "V52";
 
 let config = {
-  version: "V46 MATCH+PUMASI INTEGRATED",
+  version: "V52 PUBLIC PUMASI ENTRY",
   appName: "여우방 팔로우리스트+맞팔확인",
   apiUrl: "",
   sheetId: "",
@@ -466,6 +466,28 @@ async function bootstrapAuth() {
   try {
     publicConfig = await apiGet("publicConfig");
     updateLockIndicators();
+
+    const oauthReturned = handlePumasiOAuthReturn();
+    const resume = readPumasiOAuthReturnSession();
+
+    // 품앗이는 비밀번호 없는 공개 진입이므로 Instagram OAuth 복귀도
+    // 접속 비밀번호 화면을 거치지 않고 바로 품앗이로 돌아갑니다.
+    if (oauthReturned) {
+      accessGranted = true;
+      adminLoggedIn = false;
+      adminPasswordValue = "";
+      setAdminNavigation(false);
+      hideGate();
+
+      await loadAfterAuth();
+      showView("pumasiView");
+      await refreshPumasiAuthStatus(true);
+
+      clearPumasiOAuthReturnSession();
+      pumasiOAuthReturnPending = false;
+      return;
+    }
+
     setGate("role");
   } catch (error) {
     setGate("error", `설정을 불러오지 못했습니다. ${error.message}`);
@@ -478,6 +500,20 @@ function chooseGeneralAccess() {
     return;
   }
   setGate("access");
+}
+
+async function choosePumasiAccess() {
+  // 품앗이는 공용 접속 비밀번호 없이 바로 이용합니다.
+  accessGranted = true;
+  adminLoggedIn = false;
+  adminPasswordValue = "";
+  setAdminNavigation(false);
+  hideGate();
+
+  // 품앗이 화면에 필요한 공용 설정만 준비한 뒤 바로 진입합니다.
+  await loadAfterAuth();
+  showView("pumasiView");
+  await refreshPumasiAuthStatus(false).catch(() => {});
 }
 
 function chooseAdminAccess() {
@@ -505,8 +541,16 @@ async function submitGatePassword() {
       adminPasswordValue = "";
       setAdminNavigation(false);
       hideGate();
-      showView("followView");
       await loadAfterAuth();
+
+      if (pumasiOAuthReturnPending) {
+        showView("pumasiView");
+        await refreshPumasiAuthStatus(true);
+        clearPumasiOAuthReturnSession();
+        pumasiOAuthReturnPending = false;
+      } else {
+        showView("followView");
+      }
       return;
     }
 
@@ -1034,6 +1078,10 @@ function showView(id) {
     if (!locked && !matchRoomList.length) {
       loadMatchRoomList(false).catch(() => {});
     }
+  }
+
+  if (id === "pumasiView" && config.apiUrl) {
+    refreshPumasiAuthStatus(false).catch(() => {});
   }
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1584,6 +1632,8 @@ let pumasiVideoReview = [];
 let pumasiVideoAutoCorrected = [];
 const PUMASI_SELF_ID_KEY = "yeowoobang:pumasiSelfId:v1";
 const PUMASI_CLIENT_ID_STORAGE_KEY = "yeowoobang:pumasiClientId:v1";
+const PUMASI_OAUTH_RETURN_SESSION_KEY = "yeowoobang:pumasiOauthReturn:v2";
+let pumasiOAuthReturnPending = false;
 
 function pumasiNormalizeId(value) {
   return String(value || "")
@@ -1632,39 +1682,100 @@ function savePumasiConnectedUsername(username) {
 async function refreshPumasiAuthStatus(showToast = false) {
   const status = $("pumasiApiStatus");
   const btn = $("pumasiConnectBtn");
-  if (!status) return null;
+  const igState = $("pumasiIgState");
+  const igHelp = $("pumasiIgHelp");
+
   try {
-    const data = await pumasiApiGet("pumasiAuthStatus", { clientId: getPumasiClientId() });
+    const data = await pumasiApiGet("pumasiAuthStatus", {
+      clientId: getPumasiClientId()
+    });
+
     if (data.connected) {
       const username = savePumasiConnectedUsername(data.username);
-      status.textContent = `Instagram 연결됨 · @${username || data.username || "계정"}`;
+      const shown = username || data.username || "계정";
+
+      if (status) status.textContent = `Instagram 연결됨 · @${shown}`;
+      if (igState) igState.textContent = `@${shown}`;
+      if (igHelp) igHelp.textContent = "Instagram 연결 완료 · 내 게시물 댓글을 자동으로 확인할 수 있어요.";
       if (btn) btn.textContent = "Instagram 재연결";
-      if (showToast) toast(`Instagram @${username || data.username || "계정"} 연결 완료`);
+
+      if (showToast) toast(`Instagram @${shown} 연결 완료`);
     } else {
-      status.textContent = "연결된 계정 없음";
+      if (status) status.textContent = "연결된 Instagram 계정이 없습니다.";
+      if (igState) igState.textContent = "연결된 계정 없음";
+      if (igHelp) igHelp.textContent = "Instagram 프로페셔널 계정을 연결하면 댓글 자동 확인을 사용할 수 있어요.";
       if (btn) btn.textContent = "Instagram 연결";
     }
+
     return data;
   } catch (e) {
-    status.textContent = "Instagram 연결 상태 확인 실패 · " + String(e.message || e);
+    const message = String(e.message || e);
+    if (status) status.textContent = "Instagram 연결 상태 확인 실패 · " + message;
+    if (igHelp) igHelp.textContent = "연결 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
     return null;
   }
 }
+
 
 function handlePumasiOAuthReturn() {
   const params = new URLSearchParams(location.search);
   if (params.get("pumasi_oauth") !== "success") return false;
 
+  pumasiOAuthReturnPending = true;
   savePumasiConnectedUsername(params.get("username") || "");
+
   params.delete("pumasi_oauth");
   params.delete("username");
-  const query = params.toString();
-  const cleanUrl = location.pathname + (query ? `?${query}` : "") + location.hash;
-  try { history.replaceState({}, document.title, cleanUrl); } catch (_) {}
 
-  setTimeout(() => { refreshPumasiAuthStatus(true).catch(() => {}); }, 250);
+  const query = params.toString();
+  const cleanUrl =
+    location.pathname +
+    (query ? `?${query}` : "") +
+    location.hash;
+
+  try { history.replaceState({}, document.title, cleanUrl); } catch (_) {}
   return true;
 }
+
+function savePumasiOAuthReturnSession() {
+  try {
+    // 모바일 브라우저는 Instagram OAuth를 다른 탭/웹뷰로 열 수 있으므로
+    // sessionStorage 대신 같은 도메인에서 공유되는 localStorage를 사용합니다.
+    localStorage.setItem(
+      PUMASI_OAUTH_RETURN_SESSION_KEY,
+      JSON.stringify({
+        ts: Date.now(),
+        accessGranted: Boolean(accessGranted),
+        targetView: "pumasiView"
+      })
+    );
+  } catch (_) {}
+}
+
+function readPumasiOAuthReturnSession() {
+  try {
+    const raw = localStorage.getItem(PUMASI_OAUTH_RETURN_SESSION_KEY);
+    if (!raw) return null;
+
+    const data = JSON.parse(raw);
+    const age = Date.now() - Number(data.ts || 0);
+
+    // OAuth 복귀용으로만 10분 유지
+    if (!Number.isFinite(age) || age < 0 || age > 10 * 60 * 1000) {
+      localStorage.removeItem(PUMASI_OAUTH_RETURN_SESSION_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearPumasiOAuthReturnSession() {
+  try { localStorage.removeItem(PUMASI_OAUTH_RETURN_SESSION_KEY); } catch (_) {}
+}
+
 
 function parsePumasiParticipants(text) {
   const lines = String(text || "").split(/\r?\n/);
@@ -2163,9 +2274,6 @@ function initPumasiStage1() {
     ].join("-");
   }
 
-  handlePumasiOAuthReturn();
-  refreshPumasiAuthStatus(false).catch(() => {});
-
   $("pumasiParticipants")?.addEventListener("input", refreshPumasiParticipantCount);
   $("pumasiPasteCheckBtn")?.addEventListener("click", runPumasiPasteCheck);
   $("pumasiResetBtn")?.addEventListener("click", resetPumasiResult);
@@ -2180,8 +2288,35 @@ function initPumasiStage1() {
       status.textContent = "Instagram 로그인 페이지를 준비하는 중...";
       const data = await pumasiApiGet("pumasiAuthStart", { clientId: getPumasiClientId() });
       if (!data.authUrl) throw new Error("Instagram 로그인 주소를 받지 못했습니다.");
+
+      // Instagram 인증 후 돌아왔을 때 접속 비밀번호를 다시 묻지 않도록
+      // 현재 탭의 인증 상태를 10분 동안 sessionStorage에 보관합니다.
+      savePumasiOAuthReturnSession();
+
+      // 혹시 화면 상태 변수와 무관하게 사용자가 이미 품앗이 화면 안에서
+      // 이 버튼을 눌렀다면 OAuth 복귀 시 인증을 이어갈 수 있도록 보강합니다.
+      try {
+        const saved = JSON.parse(localStorage.getItem(PUMASI_OAUTH_RETURN_SESSION_KEY) || "{}");
+        saved.ts = Date.now();
+        saved.accessGranted = true;
+        saved.targetView = "pumasiView";
+        localStorage.setItem(PUMASI_OAUTH_RETURN_SESSION_KEY, JSON.stringify(saved));
+      } catch (_) {}
+
       status.textContent = "Instagram 로그인 화면으로 이동합니다...";
-      window.location.href = data.authUrl;
+
+      // Instagram은 iframe 안에서 로그인 페이지가 열리는 것을 차단할 수 있습니다.
+      // 최상위 브라우저 창으로 이동하고, 불가능하면 새 창으로 엽니다.
+      try {
+        if (window.top && window.top !== window.self) {
+          window.top.location.href = data.authUrl;
+        } else {
+          window.location.assign(data.authUrl);
+        }
+      } catch (_) {
+        const popup = window.open(data.authUrl, "_blank", "noopener,noreferrer");
+        if (!popup) window.location.assign(data.authUrl);
+      }
     } catch (e) {
       status.textContent = "Instagram 연결 시작 실패 · " + String(e.message || e);
       toast("Instagram 연결을 시작하지 못했습니다.");
@@ -2264,6 +2399,7 @@ document.querySelectorAll(".nav-btn").forEach((button) => {
 });
 
 $("generalAccessBtn").onclick = chooseGeneralAccess;
+$("pumasiAccessBtn") && ($("pumasiAccessBtn").onclick = choosePumasiAccess);
 $("adminAccessBtn").onclick = chooseAdminAccess;
 $("gateBackBtn").onclick = backToRoleSelect;
 $("gateSubmitBtn").onclick = submitGatePassword;
