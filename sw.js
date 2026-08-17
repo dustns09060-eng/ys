@@ -1,16 +1,16 @@
-const CACHE = 'yeowoobang-v440-roster-audit';
+const CACHE = 'yeowoobang-v441-pumasi-participant-fix';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=430',
-  './app.js?v=430',
-  './config.json?v=430',
-  './manifest.json?v=430',
-  './favicon-v20.png?v=430',
-  './icon-192-v20.png?v=430',
-  './icon-512-v20.png?v=430',
-  './app-logo-v20.png?v=430',
-  './preview-v35.png?v=430'
+  './style.css?v=441',
+  './app.js?v=441',
+  './config.json?v=441',
+  './manifest.json?v=441',
+  './favicon-v20.png?v=441',
+  './icon-192-v20.png?v=441',
+  './icon-512-v20.png?v=441',
+  './app-logo-v20.png?v=441',
+  './preview-v35.png?v=441'
 ];
 
 self.addEventListener('install', (event) => {
