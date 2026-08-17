@@ -18,10 +18,10 @@ let followGranted = false;
 let gateMode = "loading";
 let securityVersion = "";
 let noticeSignature = "";
-const APP_VERSION = "V43";
+const APP_VERSION = "V46";
 
 let config = {
-  version: "V43 ROSTER AUDIT",
+  version: "V46 MATCH+PUMASI INTEGRATED",
   appName: "여우방 팔로우리스트+맞팔확인",
   apiUrl: "",
   sheetId: "",

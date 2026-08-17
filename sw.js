@@ -1,16 +1,16 @@
-const CACHE = 'yeowoobang-v450-pumasi-video';
+const CACHE = 'yeowoobang-v460-match-pumasi';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=450',
-  './app.js?v=450',
-  './config.json?v=450',
-  './manifest.json?v=450',
-  './favicon-v20.png?v=450',
-  './icon-192-v20.png?v=450',
-  './icon-512-v20.png?v=450',
-  './app-logo-v20.png?v=450',
-  './preview-v35.png?v=450'
+  './style.css?v=460',
+  './app.js?v=460',
+  './config.json?v=460',
+  './manifest.json?v=460',
+  './favicon-v20.png?v=460',
+  './icon-192-v20.png?v=460',
+  './icon-512-v20.png?v=460',
+  './app-logo-v20.png?v=460',
+  './preview-v35.png?v=460'
 ];
 
 self.addEventListener('install', (event) => {
