@@ -2100,17 +2100,52 @@ function initPumasiStage1() {
   $("pumasiCopyMissingBtn")?.addEventListener("click", () => copyPumasiMissing(false));
   $("pumasiCopyMentionBtn")?.addEventListener("click", () => copyPumasiMissing(true));
 
-  $("pumasiConnectBtn")?.addEventListener("click", () => {
-    toast("Instagram 로그인 연결은 다음 개발 단계에서 붙입니다.");
+  $("pumasiConnectBtn")?.addEventListener("click", async () => {
+    const btn = $("pumasiConnectBtn");
+    const status = $("pumasiApiStatus");
+    try {
+      btn.disabled = true;
+      status.textContent = "Instagram API 연결 확인 중...";
+      const data = await apiGet("status");
+      status.textContent = `Instagram 연결됨 · @${data.username || "계정"}`;
+      toast("Instagram API 연결 성공");
+    } catch (e) {
+      status.textContent = "Instagram API 연결 실패 · " + String(e.message || e);
+      toast("Instagram API 연결을 확인해 주세요.");
+    } finally { btn.disabled = false; }
   });
 
-  $("pumasiApiBtn")?.addEventListener("click", () => {
+  $("pumasiApiBtn")?.addEventListener("click", async () => {
     const participants = parsePumasiParticipants($("pumasiParticipants").value);
     if (!participants.length) return toast("참여자 명단을 먼저 입력해 주세요.");
-    if (!$("pumasiPostUrl").value.trim()) return toast("확인할 Instagram 게시물 링크를 입력해 주세요.");
-    $("pumasiApiStatus").textContent =
-      "Instagram 자동 연결은 다음 단계에서 붙입니다. 지금은 아래 화면 녹화로 바로 확인할 수 있어요.";
-    toast("아래 화면 녹화 확인을 사용해 주세요.");
+    const postUrl = $("pumasiPostUrl").value.trim();
+    if (!postUrl) return toast("확인할 Instagram 게시물 링크를 입력해 주세요.");
+
+    const btn = $("pumasiApiBtn");
+    const status = $("pumasiApiStatus");
+    try {
+      btn.disabled = true;
+      status.textContent = "Meta API에서 댓글 작성자를 불러오는 중...";
+      if (!config.apiUrl) throw new Error("Apps Script 주소가 설정되지 않았습니다.");
+      const url = new URL(config.apiUrl);
+      url.searchParams.set("action", "comments");
+      url.searchParams.set("postUrl", postUrl);
+      url.searchParams.set("_t", Date.now().toString());
+      const response = await fetch(url.toString(), { method: "GET", cache: "no-store", redirect: "follow" });
+      if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || data.message || "댓글 API 요청 실패");
+
+      const completed = new Set((data.comments || []).map(c => pumasiNormalizeId(c.username)).filter(Boolean));
+      const uniqueWriters = new Set(completed);
+      const check = getPumasiCheckTargets(participants);
+      renderPumasiResult(check.targets, completed, `Meta API · 댓글 작성자 ${uniqueWriters.size}명 / 댓글 ${Number(data.commentCount || 0)}개`, new Set(), check.selfId);
+      status.textContent = `완료 · 댓글 작성자 ${uniqueWriters.size}명 확인 · 검사 대상 ${check.targets.length}명${check.selfId ? ` (내 계정 @${check.selfId} 제외)` : ""}`;
+      toast("댓글 자동 확인 완료");
+    } catch (e) {
+      status.textContent = "자동 확인 실패 · " + String(e.message || e);
+      toast("댓글 자동 확인에 실패했습니다.");
+    } finally { btn.disabled = false; }
   });
 
   $("pumasiCommentVideo")?.addEventListener("change", (e) => {
